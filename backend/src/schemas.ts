@@ -4,7 +4,8 @@ export const GenerateRequestSchema = z.object({
   storyTitle: z.string().min(1, 'Story title is required'),
   acceptanceCriteria: z.string().min(1, 'Acceptance criteria is required'),
   description: z.string().optional(),
-  additionalInfo: z.string().optional()
+  additionalInfo: z.string().optional(),
+  categories: z.array(z.string()).min(1, 'At least one category must be selected')
 })
 
 export const TestCaseSchema = z.object({

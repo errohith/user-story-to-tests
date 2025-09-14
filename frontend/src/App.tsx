@@ -3,12 +3,19 @@ import { generateTests } from './api'
 import { GenerateRequest, GenerateResponse, TestCase } from './types'
 
 function App() {
+  const categoryOptions = [
+    'Positive',
+    'Negative',
+    'Edge',
+    'Non-Functional'
+  ];
   const [formData, setFormData] = useState<GenerateRequest>({
     storyTitle: '',
     acceptanceCriteria: '',
     description: '',
-    additionalInfo: ''
-  })
+    additionalInfo: '',
+    categories: []
+  });
   const [results, setResults] = useState<GenerateResponse | null>(null)
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
@@ -25,12 +32,21 @@ function App() {
   }
 
   const handleInputChange = (field: keyof GenerateRequest, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
-  }
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleCategoryChange = (category: string) => {
+    setFormData(prev => {
+      const categories = prev.categories.includes(category)
+        ? prev.categories.filter(c => c !== category)
+        : [...prev.categories, category];
+      return { ...prev, categories };
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!formData.storyTitle.trim() || !formData.acceptanceCriteria.trim()) {
       setError('Story Title and Acceptance Criteria are required')
       return
@@ -38,7 +54,7 @@ function App() {
 
     setIsLoading(true)
     setError(null)
-    
+
     try {
       const response = await generateTests(formData)
       setResults(response)
@@ -334,13 +350,13 @@ function App() {
           letter-spacing: 0.5px;
         }
       `}</style>
-      
+
       <div className="container">
         <div className="header">
           <h1 className="title">User Story to Tests</h1>
           <p className="subtitle">Generate comprehensive test cases from your user stories</p>
         </div>
-        
+
         <form onSubmit={handleSubmit} className="form-container">
           <div className="form-group">
             <label htmlFor="storyTitle" className="form-label">
@@ -369,7 +385,7 @@ function App() {
               placeholder="Additional description (optional)..."
             />
           </div>
-          
+
           <div className="form-group">
             <label htmlFor="acceptanceCriteria" className="form-label">
               Acceptance Criteria *
@@ -383,7 +399,7 @@ function App() {
               required
             />
           </div>
-          
+
           <div className="form-group">
             <label htmlFor="additionalInfo" className="form-label">
               Additional Info
@@ -396,7 +412,31 @@ function App() {
               placeholder="Any additional information (optional)..."
             />
           </div>
-          
+          <div className="form-group">
+            <label className="form-label">Test Categories</label>
+            <div className="category-checkbox-group">
+              {categoryOptions.map((category) => (
+                <label
+                  key={category}
+                  htmlFor={`category-${category}`}
+                  className={`category-checkbox-label ${formData.categories.includes(category) ? "checked" : ""
+                    }`}
+                >
+                  <input
+                    type="checkbox"
+                    id={`category-${category}`}
+                    value={category}
+                    checked={formData.categories.includes(category)}
+                    onChange={() => handleCategoryChange(category)}
+                    className="category-checkbox-input"
+                  />
+                  <span className="category-checkbox-text">{category}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+
           <button
             type="submit"
             className="submit-btn"
@@ -428,7 +468,7 @@ function App() {
                 {results.promptTokens > 0 && ` • Tokens: ${results.promptTokens + results.completionTokens}`}
               </div>
             </div>
-            
+
             <div className="table-container">
               <table className="results-table">
                 <thead>
@@ -444,7 +484,7 @@ function App() {
                     <>
                       <tr key={testCase.id}>
                         <td>
-                          <div 
+                          <div
                             className={`test-case-id ${expandedTestCases.has(testCase.id) ? 'expanded' : ''}`}
                             onClick={() => toggleTestCaseExpansion(testCase.id)}
                           >
@@ -466,7 +506,7 @@ function App() {
                         <tr key={`${testCase.id}-details`}>
                           <td colSpan={4}>
                             <div className="expanded-details">
-                              <h4 style={{marginBottom: '15px', color: '#2c3e50'}}>Test Steps for {testCase.id}</h4>
+                              <h4 style={{ marginBottom: '15px', color: '#2c3e50' }}>Test Steps for {testCase.id}</h4>
                               <div className="step-labels">
                                 <div>Step ID</div>
                                 <div>Step Description</div>
