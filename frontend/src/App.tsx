@@ -1,21 +1,25 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { generateTests } from './api'
 import { GenerateRequest, GenerateResponse, TestCase } from './types'
 
 function App() {
-  const categoryOptions = [
-    'Positive',
-    'Negative',
-    'Edge',
-    'Non-Functional'
-  ];
   const [formData, setFormData] = useState<GenerateRequest>({
     storyTitle: '',
     acceptanceCriteria: '',
     description: '',
     additionalInfo: '',
-    categories: []
-  });
+    category: ''
+  })
+  // Local UI state for selected categories (kept in sync with formData.category CSV)
+  const CATEGORIES = ['Positive', 'Negative', 'Edge', 'Authorization', 'Non-Functional']
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(
+    formData.category ? formData.category.split(',').map(s => s.trim()).filter(Boolean) : []
+  )
+
+  // keep formData.category in sync when selectedCategories changes
+  useEffect(() => {
+    setFormData(prev => ({ ...prev, category: selectedCategories.join(',') }))
+  }, [selectedCategories])
   const [results, setResults] = useState<GenerateResponse | null>(null)
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
@@ -32,21 +36,12 @@ function App() {
   }
 
   const handleInputChange = (field: keyof GenerateRequest, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-  };
-
-  const handleCategoryChange = (category: string) => {
-    setFormData(prev => {
-      const categories = prev.categories.includes(category)
-        ? prev.categories.filter(c => c !== category)
-        : [...prev.categories, category];
-      return { ...prev, categories };
-    });
-  };
+    setFormData(prev => ({ ...prev, [field]: value }))
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-
+    
     if (!formData.storyTitle.trim() || !formData.acceptanceCriteria.trim()) {
       setError('Story Title and Acceptance Criteria are required')
       return
@@ -54,7 +49,7 @@ function App() {
 
     setIsLoading(true)
     setError(null)
-
+    
     try {
       const response = await generateTests(formData)
       setResults(response)
@@ -76,7 +71,7 @@ function App() {
         
         body {
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-          background-color: #f5f5f5;
+          background-color: #bbeac5ff;
           color: #333;
           line-height: 1.6;
         }
@@ -165,7 +160,7 @@ function App() {
         }
         
         .submit-btn {
-          background: #3498db;
+          background: #df171bff;
           color: white;
           border: none;
           padding: 12px 24px;
@@ -349,14 +344,35 @@ function App() {
           text-transform: uppercase;
           letter-spacing: 0.5px;
         }
+        .category-chip-row { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+        .category-chip {
+          display:inline-flex;
+          align-items:center;
+          gap:8px;
+          padding:6px 12px;
+          border-radius:999px;
+          background:#f3f6fb;
+          border:1px solid #e6edf6;
+          cursor:pointer;
+          font-weight:500;
+          color:#222;
+          transition:all 120ms ease;
+        }
+        .category-chip:hover { transform:translateY(-1px); box-shadow: 0 4px 10px rgba(15,23,42,0.06); }
+        .category-chip.selected {
+          background: linear-gradient(180deg, #2563eb 0%, #1e40af 100%);
+          color: white;
+          border-color: rgba(30,64,175,0.9);
+        }
+        .category-chip .chip-check { font-weight:700; margin-left:6px; }
       `}</style>
-
+      
       <div className="container">
         <div className="header">
           <h1 className="title">User Story to Tests</h1>
           <p className="subtitle">Generate comprehensive test cases from your user stories</p>
         </div>
-
+        
         <form onSubmit={handleSubmit} className="form-container">
           <div className="form-group">
             <label htmlFor="storyTitle" className="form-label">
@@ -385,7 +401,7 @@ function App() {
               placeholder="Additional description (optional)..."
             />
           </div>
-
+          
           <div className="form-group">
             <label htmlFor="acceptanceCriteria" className="form-label">
               Acceptance Criteria *
@@ -399,7 +415,7 @@ function App() {
               required
             />
           </div>
-
+          
           <div className="form-group">
             <label htmlFor="additionalInfo" className="form-label">
               Additional Info
@@ -412,31 +428,58 @@ function App() {
               placeholder="Any additional information (optional)..."
             />
           </div>
+
           <div className="form-group">
-            <label className="form-label">Test Categories</label>
-            <div className="category-checkbox-group">
-              {categoryOptions.map((category) => (
-                <label
-                  key={category}
-                  htmlFor={`category-${category}`}
-                  className={`category-checkbox-label ${formData.categories.includes(category) ? "checked" : ""
-                    }`}
-                >
-                  <input
-                    type="checkbox"
-                    id={`category-${category}`}
-                    value={category}
-                    checked={formData.categories.includes(category)}
-                    onChange={() => handleCategoryChange(category)}
-                    className="category-checkbox-input"
-                  />
-                  <span className="category-checkbox-text">{category}</span>
-                </label>
-              ))}
+            <label className="form-label">
+              Test Category
+            </label>
+            <div className="category-chip-row" role="list" aria-label="Test categories">
+              {CATEGORIES.map(cat => {
+                const isSelected = selectedCategories.includes(cat)
+                return (
+                  <button
+                    key={cat}
+                    type="button"
+                    role="listitem"
+                    aria-pressed={isSelected}
+                    className={`category-chip ${isSelected ? 'selected' : ''}`}
+                    onClick={() => {
+                      setSelectedCategories(prev =>
+                        prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
+                      )
+                    }}
+                    style={{ marginRight: 8 }}
+                  >
+                    <span className="chip-label">{cat}</span>
+                    <span className="chip-check" aria-hidden>{isSelected ? '✓' : ''}</span>
+                  </button>
+                )
+              })}
+            </div>
+            <div style={{ marginTop: 8, color: '#6b7280', fontSize: 13 }}>
+              Select one or more categories. If none selected, all categories will be generated.
             </div>
           </div>
 
-
+          <div className="form-group">
+            <label htmlFor="testcaseCount" className="form-label">
+              Number of Test Cases
+            </label>
+            <select
+              id="testcaseCount"
+              className="form-input"
+              value={String(formData.testcaseCount ?? 5)}
+              onChange={(e) => setFormData(prev => ({ ...prev, testcaseCount: Number(e.target.value) }))}
+            >
+              {Array.from({ length: 20 }, (_, i) => i + 1).map(n => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+            <div style={{ marginTop: 8, color: '#6b7280', fontSize: 13 }}>
+              Select how many test cases you want (max 20).
+            </div>
+          </div>
+          
           <button
             type="submit"
             className="submit-btn"
@@ -464,11 +507,15 @@ function App() {
               <h2 className="results-title">Generated Test Cases</h2>
               <div className="results-meta">
                 {results.cases.length} test case(s) generated
+                {typeof formData.testcaseCount === 'number' && ` • Requested: ${formData.testcaseCount}`}
                 {results.model && ` • Model: ${results.model}`}
                 {results.promptTokens > 0 && ` • Tokens: ${results.promptTokens + results.completionTokens}`}
+                {results.note && (
+                  <div style={{ marginTop: 8, color: '#c0392b' }}>{results.note}</div>
+                )}
               </div>
             </div>
-
+            
             <div className="table-container">
               <table className="results-table">
                 <thead>
@@ -484,7 +531,7 @@ function App() {
                     <>
                       <tr key={testCase.id}>
                         <td>
-                          <div
+                          <div 
                             className={`test-case-id ${expandedTestCases.has(testCase.id) ? 'expanded' : ''}`}
                             onClick={() => toggleTestCaseExpansion(testCase.id)}
                           >
@@ -506,7 +553,7 @@ function App() {
                         <tr key={`${testCase.id}-details`}>
                           <td colSpan={4}>
                             <div className="expanded-details">
-                              <h4 style={{ marginBottom: '15px', color: '#2c3e50' }}>Test Steps for {testCase.id}</h4>
+                              <h4 style={{marginBottom: '15px', color: '#2c3e50'}}>Test Steps for {testCase.id}</h4>
                               <div className="step-labels">
                                 <div>Step ID</div>
                                 <div>Step Description</div>

@@ -2,8 +2,9 @@ export interface GenerateRequest {
   storyTitle: string
   acceptanceCriteria: string
   description?: string
-  additionalInfo?: string
-  categories: string[]
+  additionalInfo?: string,
+  category?: string
+  testcaseCount?: number
 }
 
 export interface TestCase {
@@ -20,4 +21,6 @@ export interface GenerateResponse {
   model?: string
   promptTokens: number
   completionTokens: number
+  note?: string
+  requestedCount?: number
 }
