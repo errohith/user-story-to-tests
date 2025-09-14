@@ -1,29 +1,61 @@
-import { useState, useEffect } from 'react'
-import { generateTests } from './api'
-import { GenerateRequest, GenerateResponse, TestCase } from './types'
+import React, { useState, useEffect, useMemo } from 'react'
+import { parseTestCasesForDataFields } from './utils/testDataParser'
+import { generateTests, generateTestData } from './api'
+import { 
+  GenerateRequest, 
+  GenerateResponse, 
+  TestCase, 
+  TestCategory,
+  GenerateTestDataRequest, 
+  GenerateTestDataResponse
+} from './types'
 
 function App() {
+  const [activeTab, setActiveTab] = useState<'test-cases' | 'test-data'>('test-cases')
   const [formData, setFormData] = useState<GenerateRequest>({
     storyTitle: '',
     acceptanceCriteria: '',
     description: '',
     additionalInfo: '',
-    category: ''
+    categories: []
   })
-  // Local UI state for selected categories (kept in sync with formData.category CSV)
-  const CATEGORIES = ['Positive', 'Negative', 'Edge', 'Authorization', 'Non-Functional']
-  const [selectedCategories, setSelectedCategories] = useState<string[]>(
-    formData.category ? formData.category.split(',').map(s => s.trim()).filter(Boolean) : []
-  )
 
-  // keep formData.category in sync when selectedCategories changes
+  const [testDataForm, setTestDataForm] = useState<Omit<GenerateTestDataRequest, 'categories'>>({
+    storyTitle: '',
+    fields: [],
+    recordCount: 5
+  })
+
+  const CATEGORIES = ['Positive', 'Negative', 'Edge', 'Non-Functional'] as const
+  type CategoryType = typeof CATEGORIES[number]
+  const [selectedCategories, setSelectedCategories] = useState<CategoryType[]>([])
+  const [testDataResults, setTestDataResults] = useState<GenerateTestDataResponse | null>(null)
+  const [isGeneratingData, setIsGeneratingData] = useState(false)
+
+  // keep formData.categories in sync when selectedCategories changes
   useEffect(() => {
-    setFormData(prev => ({ ...prev, category: selectedCategories.join(',') }))
+    setFormData(prev => ({ ...prev, categories: selectedCategories as TestCategory[] }))
   }, [selectedCategories])
   const [results, setResults] = useState<GenerateResponse | null>(null)
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
   const [expandedTestCases, setExpandedTestCases] = useState<Set<string>>(new Set())
+
+  // Parse test cases for data fields whenever results change
+  const parsedTestData = useMemo(() => {
+    if (!results?.cases.length) return null
+    return parseTestCasesForDataFields(results.cases)
+  }, [results])
+
+  // Update test data form when parsed data changes
+  useEffect(() => {
+    if (parsedTestData) {
+      setTestDataForm(prev => ({
+        ...prev,
+        fields: parsedTestData.fields
+      }))
+    }
+  }, [parsedTestData])
 
   const toggleTestCaseExpansion = (testCaseId: string) => {
     const newExpanded = new Set(expandedTestCases)
@@ -37,6 +69,29 @@ function App() {
 
   const handleInputChange = (field: keyof GenerateRequest, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
+  }
+
+  const handleGenerateTestData = async () => {
+    if (selectedCategories.length === 0) {
+      setError('Please select at least one category')
+      return
+    }
+
+    setIsGeneratingData(true)
+    setError(null)
+    
+    try {
+      const response = await generateTestData({
+        ...testDataForm,
+        categories: selectedCategories,
+        storyTitle: formData.storyTitle
+      })
+      setTestDataResults(response)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to generate test data')
+    } finally {
+      setIsGeneratingData(false)
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -252,6 +307,37 @@ function App() {
         .category-authorization { color: #9b59b6; font-weight: 600; }
         .category-non-functional { color: #34495e; font-weight: 600; }
         
+        .nav-menu {
+          display: flex;
+          justify-content: center;
+          gap: 20px;
+          margin-top: 30px;
+          padding: 10px;
+          background: rgba(255, 255, 255, 0.1);
+          border-radius: 8px;
+        }
+
+        .nav-button {
+          padding: 12px 24px;
+          background: transparent;
+          border: 2px solid #df171bff;
+          border-radius: 6px;
+          color: #df171bff;
+          font-size: 16px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .nav-button:hover {
+          background: rgba(223, 23, 27, 0.1);
+        }
+
+        .nav-button.active {
+          background: #df171bff;
+          color: white;
+        }
+        
         .test-case-id {
           cursor: pointer;
           color: #3498db;
@@ -365,19 +451,167 @@ function App() {
           border-color: rgba(30,64,175,0.9);
         }
         .category-chip .chip-check { font-weight:700; margin-left:6px; }
+
+        .section-title {
+          font-size: 1.8rem;
+          color: #2c3e50;
+          margin-bottom: 15px;
+        }
+
+        .section-description {
+          color: #666;
+          margin-bottom: 30px;
+          font-size: 1.1rem;
+          line-height: 1.5;
+        }
+
+        .help-text {
+          color: #666;
+          font-size: 0.9rem;
+          margin-top: 8px;
+          font-style: italic;
+        }
+
+        .field-config {
+          background: #f8f9fa;
+          border: 1px solid #e1e8ed;
+          border-radius: 6px;
+          padding: 15px;
+          margin-bottom: 10px;
+        }
+
+        .field-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 8px;
+        }
+
+        .field-type {
+          background: #e3f2fd;
+          color: #1976d2;
+          padding: 2px 8px;
+          border-radius: 4px;
+          font-size: 0.9rem;
+        }
+
+        .field-constraints {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px;
+          font-size: 0.9rem;
+          color: #666;
+          margin-top: 8px;
+        }
+
+        .field-metadata {
+          display: flex;
+          gap: 8px;
+          align-items: center;
+        }
+
+        .field-category {
+          padding: 2px 8px;
+          border-radius: 4px;
+          font-size: 0.8rem;
+          font-weight: 500;
+        }
+
+        .field-description {
+          color: #666;
+          font-size: 0.9rem;
+          margin: 8px 0;
+          font-style: italic;
+        }
+
+        .field-condition {
+          background: #f3f6fb;
+          padding: 4px 10px;
+          border-radius: 4px;
+          font-size: 0.85rem;
+          border: 1px solid #e6edf6;
+        }
+
+        .test-data-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+          gap: 20px;
+          margin-top: 20px;
+        }
+
+        .test-data-card {
+          background: white;
+          border: 1px solid #e1e8ed;
+          border-radius: 8px;
+          overflow: hidden;
+        }
+
+        .test-data-header {
+          background: #f8f9fa;
+          padding: 12px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          border-bottom: 1px solid #e1e8ed;
+        }
+
+        .record-id {
+          color: #666;
+          font-size: 0.9rem;
+        }
+
+        .test-data-body {
+          padding: 15px;
+        }
+
+        .data-field {
+          display: flex;
+          justify-content: space-between;
+          padding: 8px 0;
+          border-bottom: 1px solid #f0f0f0;
+        }
+
+        .data-field:last-child {
+          border-bottom: none;
+        }
+
+        .field-name {
+          color: #666;
+          font-weight: 500;
+        }
+
+        .field-value {
+          color: #2c3e50;
+          font-family: monospace;
+        }
       `}</style>
       
       <div className="container">
         <div className="header">
           <h1 className="title">User Story to Tests</h1>
           <p className="subtitle">Generate comprehensive test cases from your user stories</p>
+          <div className="nav-menu">
+            <button 
+              className={`nav-button ${activeTab === 'test-cases' ? 'active' : ''}`}
+              onClick={() => setActiveTab('test-cases')}
+            >
+              Generate Test Cases
+            </button>
+            <button 
+              className={`nav-button ${activeTab === 'test-data' ? 'active' : ''}`}
+              onClick={() => setActiveTab('test-data')}
+            >
+              Generate Test Data
+            </button>
+          </div>
         </div>
         
-        <form onSubmit={handleSubmit} className="form-container">
-          <div className="form-group">
-            <label htmlFor="storyTitle" className="form-label">
-              Story Title *
-            </label>
+        {activeTab === 'test-cases' ? (
+          <form onSubmit={handleSubmit} className="form-container">
+            <div className="form-group">
+              <label htmlFor="storyTitle" className="form-label">
+                Story Title *
+              </label>
             <input
               type="text"
               id="storyTitle"
@@ -445,7 +679,7 @@ function App() {
                     className={`category-chip ${isSelected ? 'selected' : ''}`}
                     onClick={() => {
                       setSelectedCategories(prev =>
-                        prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
+                        prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat as CategoryType]
                       )
                     }}
                     style={{ marginRight: 8 }}
@@ -488,6 +722,130 @@ function App() {
             {isLoading ? 'Generating...' : 'Generate'}
           </button>
         </form>
+        ) : (
+          <div className="form-container">
+            <h2 className="section-title">Generate Test Data</h2>
+            <p className="section-description">
+              Create sample test data for your test cases. Choose the type of data you need and customize the generation options.
+            </p>
+            
+            <div className="form-group">
+              <label className="form-label">Data Categories</label>
+              <div className="category-chip-row">
+                {CATEGORIES.map(cat => {
+                  const isSelected = selectedCategories.includes(cat as TestCategory)
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      className={`category-chip ${isSelected ? 'selected' : ''}`}
+                      onClick={() => {
+                        setSelectedCategories(prev =>
+                          prev.includes(cat as TestCategory) 
+                            ? prev.filter(c => c !== cat) 
+                            : [...prev, cat as TestCategory]
+                        )
+                      }}
+                    >
+                      <span className="chip-label">{cat}</span>
+                      <span className="chip-check">{isSelected ? '✓' : ''}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Extracted Data Fields</label>
+              {testDataForm.fields.length === 0 ? (
+                <div className="help-text">
+                  Generate test cases first to automatically extract required data fields.
+                </div>
+              ) : (
+                testDataForm.fields.map((field, index) => (
+                  <div key={index} className="field-config">
+                    <div className="field-name">{field.name}</div>
+                    <div className="field-metadata">
+                      <div 
+                        className="field-category" 
+                        style={{ 
+                          background: field.type === 'date' ? '#e6f3ff' : 
+                                     field.type === 'string' ? '#e6ffe6' : 
+                                     field.type === 'number' ? '#fff0e6' : '#f3f6fb'
+                        }}
+                      >
+                        {field.type}
+                      </div>
+                      <div className="field-description">{field.constraints?.description}</div>
+                    </div>
+                    {field.constraints?.conditions && field.constraints.conditions.length > 0 && (
+                      <div className="field-constraints">
+                        {field.constraints.conditions.map((condition, idx) => (
+                          <div key={idx} className="field-condition">
+                            {condition.constraint}: {String(condition.value)}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="recordCount" className="form-label">
+                Number of Records
+              </label>
+              <input
+                type="number"
+                id="recordCount"
+                className="form-input"
+                value={testDataForm.recordCount}
+                onChange={(e) => setTestDataForm(prev => ({
+                  ...prev,
+                  recordCount: Math.max(1, Math.min(100, parseInt(e.target.value) || 1))
+                }))}
+                min="1"
+                max="100"
+              />
+            </div>
+
+            <button
+              type="button"
+              className="submit-btn"
+              disabled={isGeneratingData || selectedCategories.length === 0}
+              onClick={handleGenerateTestData}
+            >
+              {isGeneratingData ? 'Generating...' : 'Generate Test Data'}
+            </button>
+
+            {testDataResults && (
+              <div className="results-container" style={{ marginTop: '20px' }}>
+                <h3>Generated Test Data</h3>
+                <div className="test-data-grid">
+                  {testDataResults.records.map((record, index) => (
+                    <div key={record.id} className="test-data-card">
+                      <div className="test-data-header">
+                        <span className={`category-${record.category.toLowerCase()}`}>
+                          {record.category}
+                        </span>
+                        <span className="record-id">#{index + 1}</span>
+                      </div>
+                      <div className="test-data-body">
+                        {Object.entries(record.data).map(([key, value]) => (
+                          <div key={key} className="data-field">
+                            <span className="field-name">{key}:</span>
+                            <span className="field-value">{String(value)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {error && (
           <div className="error-banner">
@@ -528,8 +886,8 @@ function App() {
                 </thead>
                 <tbody>
                   {results.cases.map((testCase: TestCase) => (
-                    <>
-                      <tr key={testCase.id}>
+                    <React.Fragment key={`case-${testCase.id}`}>
+                      <tr>
                         <td>
                           <div 
                             className={`test-case-id ${expandedTestCases.has(testCase.id) ? 'expanded' : ''}`}
@@ -576,7 +934,7 @@ function App() {
                           </td>
                         </tr>
                       )}
-                    </>
+                    </React.Fragment>
                   ))}
                 </tbody>
               </table>

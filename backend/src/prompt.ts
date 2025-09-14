@@ -12,7 +12,7 @@ CRITICAL: You must return ONLY valid JSON matching this exact schema:
       "steps": ["string", "..."],
       "testData": "string (optional)",
       "expectedResult": "string",
-      "category": "string (e.g., Positive|Negative|Edge|Authorization|Non-Functional)"
+      "category": "string (Positive|Negative|Edge|Non-Functional)"
     }
   ],
   "model": "string (optional)",
@@ -23,8 +23,12 @@ CRITICAL: You must return ONLY valid JSON matching this exact schema:
 Guidelines:
 - Generate test case IDs like TC-001, TC-002, etc.
 - Write concise, imperative steps (e.g., "Click login button", "Enter valid email")
-- Include Positive, Negative, and Edge test cases where relevant
-- Categories: Positive, Negative, Edge, Authorization, Non-Functional
+- Include only test cases for the requested categories
+- Categories:
+  * Positive: Testing expected behavior with valid inputs
+  * Negative: Testing system behavior with invalid inputs
+  * Edge: Testing boundary conditions and edge cases
+  * Non-Functional: Performance, usability, and reliability tests
 - Steps should be actionable and specific
 - Expected results should be clear and measurable
 
@@ -55,9 +59,9 @@ ${additionalInfo}
 
   if (categories && categories.length > 0) {
     userPrompt += `\nSelected Test Categories: ${categories.join(", ")}`;
-    userPrompt += `\nGenerate test cases ONLY for the selected categories above. Return only the JSON response.`;
+    userPrompt += `\nIMPORTANT: Generate test cases ONLY for the selected categories above. Each test case MUST be assigned to one of the selected categories. Return only the JSON response.`;
   } else {
-    userPrompt += `\nGenerate test cases covering positive scenarios, negative scenarios, edge cases, and any authorization or non-functional requirements as applicable. Return only the JSON response.`;
+    userPrompt += `\nGenerate a balanced mix of test cases covering positive scenarios, negative scenarios, edge cases, and non-functional requirements as applicable. Return only the JSON response.`;
   }
 
   return userPrompt;
