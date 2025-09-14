@@ -33,6 +33,7 @@ export interface ParsedTestData {
 
 export interface GenerateRequest {
   storyTitle: string
+  jiraId?: string
   acceptanceCriteria: string
   description?: string
   additionalInfo?: string,

@@ -10,10 +10,21 @@ import {
   GenerateTestDataResponse
 } from './types'
 
+// Sample Jira stories for demo
+const SAMPLE_JIRA_STORIES = [
+  { id: 'JIRA-123', title: 'Implement user authentication' },
+  { id: 'JIRA-456', title: 'Add payment integration' },
+  { id: 'JIRA-789', title: 'Create dashboard analytics' },
+  { id: 'JIRA-234', title: 'Fix navigation bugs' },
+  { id: 'JIRA-567', title: 'Update user profile page' }
+]
+
 function App() {
   const [activeTab, setActiveTab] = useState<'test-cases' | 'test-data'>('test-cases')
+  const [isJiraModalOpen, setIsJiraModalOpen] = useState(false)
   const [formData, setFormData] = useState<GenerateRequest>({
     storyTitle: '',
+    jiraId: '',
     acceptanceCriteria: '',
     description: '',
     additionalInfo: '',
@@ -68,7 +79,23 @@ function App() {
   }
 
   const handleInputChange = (field: keyof GenerateRequest, value: string) => {
+    if (field === 'jiraId') {
+      // Only allow uppercase letters, numbers, and hyphen
+      value = value.toUpperCase().replace(/[^A-Z0-9-]/g, '');
+    }
     setFormData(prev => ({ ...prev, [field]: value }))
+  }
+
+  const fetchJiraDetails = async (jiraId: string) => {
+    // Simulated API call - replace with actual JIRA API integration later
+    const story = SAMPLE_JIRA_STORIES.find(s => s.id === jiraId);
+    if (story) {
+      handleInputChange('storyTitle', story.title);
+      // You could also auto-fill other fields like description and acceptance criteria
+      // once the backend integration is ready
+    } else {
+      setError('JIRA story not found. Please check the ID.');
+    }
   }
 
   const handleGenerateTestData = async () => {
@@ -193,6 +220,13 @@ function App() {
           font-weight: 600;
           margin-bottom: 8px;
           color: #2c3e50;
+        }
+        
+        .optional-label {
+          color: #666;
+          font-weight: normal;
+          font-size: 0.9em;
+          margin-left: 4px;
         }
         
         .form-input, .form-textarea {
@@ -584,6 +618,133 @@ function App() {
           color: #2c3e50;
           font-family: monospace;
         }
+
+        .title-row {
+          display: flex;
+          gap: 12px;
+          align-items: center;
+        }
+
+        .jira-button {
+          padding: 8px 16px;
+          background: #0052cc;
+          color: white;
+          border: none;
+          border-radius: 4px;
+          font-size: 14px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: background-color 0.2s;
+          white-space: nowrap;
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+        }
+
+        .jira-button:hover {
+          background: #0747a6;
+        }
+
+        .jira-button svg {
+          width: 16px;
+          height: 16px;
+        }
+
+        .modal-backdrop {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.5);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1000;
+        }
+
+        .modal {
+          background: white;
+          border-radius: 8px;
+          padding: 24px;
+          width: 90%;
+          max-width: 500px;
+          box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        }
+
+        .modal-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 20px;
+        }
+
+        .modal-title {
+          font-size: 1.4rem;
+          font-weight: 600;
+          color: #2c3e50;
+        }
+
+        .modal-close {
+          background: none;
+          border: none;
+          font-size: 24px;
+          color: #666;
+          cursor: pointer;
+          padding: 4px;
+        }
+
+        .modal-close:hover {
+          color: #333;
+        }
+
+        .jira-story-list {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+
+        .jira-story-item {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 12px;
+          border: 1px solid #e1e8ed;
+          border-radius: 6px;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .jira-story-item:hover {
+          background: #f8f9fa;
+          border-color: #cfd9e2;
+          transform: translateY(-1px);
+        }
+
+        .jira-id {
+          font-family: monospace;
+          font-weight: 600;
+          color: #0052cc;
+          padding: 4px 8px;
+          background: #deebff;
+          border-radius: 4px;
+        }
+
+        .jira-title {
+          color: #2c3e50;
+          font-size: 14px;
+          line-height: 1.4;
+          flex: 1;
+        }
+
+        @keyframes modalFadeIn {
+          from { opacity: 0; transform: translateY(-20px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        .modal {
+          animation: modalFadeIn 0.2s ease-out;
+        }
       `}</style>
       
       <div className="container">
@@ -609,19 +770,79 @@ function App() {
         {activeTab === 'test-cases' ? (
           <form onSubmit={handleSubmit} className="form-container">
             <div className="form-group">
+              <label htmlFor="jiraId" className="form-label">
+                JIRA ID
+                <span className="optional-label"> (Optional)</span>
+              </label>
+              <div className="title-row">
+                <input
+                  type="text"
+                  id="jiraId"
+                  className="form-input"
+                  value={formData.jiraId}
+                  onChange={(e) => handleInputChange('jiraId', e.target.value)}
+                  placeholder="Enter JIRA ID (e.g., JIRA-123)..."
+                />
+                <button
+                  type="button"
+                  className="jira-button"
+                  onClick={() => formData.jiraId ? fetchJiraDetails(formData.jiraId) : setIsJiraModalOpen(true)}
+                  disabled={isLoading}
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M11.53 2.3A1.85 1.85 0 0010 4.15L10 11.85A1.85 1.85 0 0011.85 13.7H19.55A1.85 1.85 0 0021.4 11.85L21.4 4.15A1.85 1.85 0 0019.55 2.3L11.53 2.3zM2.3 12.56L2.3 20.26A1.85 1.85 0 004.15 22.11H11.85A1.85 1.85 0 0013.7 20.26L13.7 12.56A1.85 1.85 0 0011.85 10.7L4.15 10.7A1.85 1.85 0 002.3 12.56z" />
+                  </svg>
+                  {formData.jiraId ? 'Fetch Details' : 'Browse JIRA'}
+                </button>
+              </div>
+            </div>
+
+            <div className="form-group">
               <label htmlFor="storyTitle" className="form-label">
                 Story Title *
               </label>
-            <input
-              type="text"
-              id="storyTitle"
-              className="form-input"
-              value={formData.storyTitle}
-              onChange={(e) => handleInputChange('storyTitle', e.target.value)}
-              placeholder="Enter the user story title..."
-              required
-            />
-          </div>
+              <input
+                type="text"
+                id="storyTitle"
+                className="form-input"
+                value={formData.storyTitle}
+                onChange={(e) => handleInputChange('storyTitle', e.target.value)}
+                placeholder="Enter the user story title..."
+                required
+              />
+            </div>
+
+            {isJiraModalOpen && (
+              <div className="modal-backdrop" onClick={() => setIsJiraModalOpen(false)}>
+                <div className="modal" onClick={e => e.stopPropagation()}>
+                  <div className="modal-header">
+                    <h3 className="modal-title">Select Jira Story</h3>
+                    <button 
+                      className="modal-close"
+                      onClick={() => setIsJiraModalOpen(false)}
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <div className="jira-story-list">
+                    {SAMPLE_JIRA_STORIES.map(story => (
+                      <div
+                        key={story.id}
+                        className="jira-story-item"
+                        onClick={() => {
+                          handleInputChange('jiraId', story.id);
+                          handleInputChange('storyTitle', story.title);
+                          setIsJiraModalOpen(false);
+                        }}
+                      >
+                        <span className="jira-id">{story.id}</span>
+                        <span className="jira-title">{story.title}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
 
           <div className="form-group">
             <label htmlFor="description" className="form-label">
