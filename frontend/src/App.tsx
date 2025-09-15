@@ -6,9 +6,11 @@ import {
   GenerateResponse, 
   TestCase, 
   TestCategory,
+  TestFormat,
   GenerateTestDataRequest, 
   GenerateTestDataResponse
 } from './types'
+import GherkinSyntaxRenderer from './components/GherkinSyntaxRenderer'
 
 // Sample Jira stories for demo
 const SAMPLE_JIRA_STORIES = [
@@ -28,7 +30,8 @@ function App() {
     acceptanceCriteria: '',
     description: '',
     additionalInfo: '',
-    categories: []
+    categories: [],
+    formats: []
   })
 
   const [testDataForm, setTestDataForm] = useState<Omit<GenerateTestDataRequest, 'categories'>>({
@@ -40,13 +43,21 @@ function App() {
   const CATEGORIES = ['Positive', 'Negative', 'Edge', 'Non-Functional'] as const
   type CategoryType = typeof CATEGORIES[number]
   const [selectedCategories, setSelectedCategories] = useState<CategoryType[]>([])
+  
+  const TEST_FORMATS = ['Manual', 'BDD'] as const
+  type FormatType = typeof TEST_FORMATS[number]
+  const [selectedFormats, setSelectedFormats] = useState<FormatType[]>(['Manual'])
   const [testDataResults, setTestDataResults] = useState<GenerateTestDataResponse | null>(null)
   const [isGeneratingData, setIsGeneratingData] = useState(false)
 
-  // keep formData.categories in sync when selectedCategories changes
+  // keep formData.categories and formats in sync when selectedCategories/selectedFormats changes
   useEffect(() => {
-    setFormData(prev => ({ ...prev, categories: selectedCategories as TestCategory[] }))
-  }, [selectedCategories])
+    setFormData(prev => ({ 
+      ...prev, 
+      categories: selectedCategories as TestCategory[],
+      formats: selectedFormats as TestFormat[]
+    }))
+  }, [selectedCategories, selectedFormats])
   const [results, setResults] = useState<GenerateResponse | null>(null)
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
@@ -129,6 +140,11 @@ function App() {
       return
     }
 
+    if (selectedFormats.length === 0) {
+      setError('Please select at least one test format')
+      return
+    }
+
     setIsLoading(true)
     setError(null)
     
@@ -140,6 +156,79 @@ function App() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const handleReset = () => {
+    // Show confirmation dialog if form has data
+    const hasFormData = formData.storyTitle || 
+                        formData.jiraId || 
+                        formData.acceptanceCriteria || 
+                        formData.description || 
+                        formData.additionalInfo ||
+                        selectedCategories.length > 0 ||
+                        results !== null
+
+    if (hasFormData) {
+      const confirmed = window.confirm(
+        'Are you sure you want to reset all fields? This will clear all entered data and results.'
+      )
+      if (!confirmed) {
+        return
+      }
+    }
+
+    // Reset form data to initial state
+    setFormData({
+      storyTitle: '',
+      jiraId: '',
+      acceptanceCriteria: '',
+      description: '',
+      additionalInfo: '',
+      categories: [],
+      formats: []
+    })
+    
+    // Reset selected categories and formats
+    setSelectedCategories([])
+    setSelectedFormats(['Manual']) // Default to Manual format
+    
+    // Clear results and errors
+    setResults(null)
+    setError(null)
+    
+    // Reset expanded test cases
+    setExpandedTestCases(new Set())
+  }
+
+  const handleResetTestData = () => {
+    // Show confirmation dialog if test data form has data
+    const hasTestDataFormData = testDataForm.fields.length > 0 ||
+                                testDataForm.recordCount !== 5 ||
+                                selectedCategories.length > 0 ||
+                                testDataResults !== null
+
+    if (hasTestDataFormData) {
+      const confirmed = window.confirm(
+        'Are you sure you want to reset test data settings? This will clear all configurations and results.'
+      )
+      if (!confirmed) {
+        return
+      }
+    }
+
+    // Reset test data form to initial state
+    setTestDataForm({
+      storyTitle: '',
+      fields: [],
+      recordCount: 5
+    })
+    
+    // Reset selected categories
+    setSelectedCategories([])
+    
+    // Clear test data results and errors
+    setTestDataResults(null)
+    setError(null)
   }
 
   return (
@@ -266,6 +355,31 @@ function App() {
         
         .submit-btn:disabled {
           background: #bdc3c7;
+          cursor: not-allowed;
+        }
+        
+        .reset-btn {
+          background: transparent;
+          color: #6b7280;
+          border: 2px solid #d1d5db;
+          padding: 12px 24px;
+          border-radius: 6px;
+          font-size: 16px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        
+        .reset-btn:hover:not(:disabled) {
+          background: #f3f4f6;
+          border-color: #9ca3af;
+          color: #374151;
+        }
+        
+        .reset-btn:disabled {
+          background: #f9fafb;
+          border-color: #e5e7eb;
+          color: #d1d5db;
           cursor: not-allowed;
         }
         
@@ -934,14 +1048,57 @@ function App() {
               Select how many test cases you want (max 20).
             </div>
           </div>
+
+          <div className="form-group">
+            <label className="form-label">
+              Test Format
+            </label>
+            <div className="category-chip-row" role="list" aria-label="Test formats">
+              {TEST_FORMATS.map(format => {
+                const isSelected = selectedFormats.includes(format)
+                return (
+                  <button
+                    key={format}
+                    type="button"
+                    role="listitem"
+                    aria-pressed={isSelected}
+                    className={`category-chip ${isSelected ? 'selected' : ''}`}
+                    onClick={() => {
+                      setSelectedFormats(prev =>
+                        prev.includes(format) ? prev.filter(f => f !== format) : [...prev, format as FormatType]
+                      )
+                    }}
+                    style={{ marginRight: 8 }}
+                  >
+                    <span className="chip-label">{format} {format === 'Manual' ? 'Cases' : 'Scenarios'}</span>
+                    <span className="chip-check" aria-hidden>{isSelected ? '✓' : ''}</span>
+                  </button>
+                )
+              })}
+            </div>
+            <div style={{ marginTop: 8, color: '#6b7280', fontSize: 13 }}>
+              Select one or more formats for test case generation.
+            </div>
+          </div>
           
-          <button
-            type="submit"
-            className="submit-btn"
-            disabled={isLoading}
-          >
-            {isLoading ? 'Generating...' : 'Generate'}
-          </button>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <button
+              type="submit"
+              className="submit-btn"
+              disabled={isLoading}
+            >
+              {isLoading ? 'Generating...' : 'Generate'}
+            </button>
+            
+            <button
+              type="button"
+              className="reset-btn"
+              onClick={handleReset}
+              disabled={isLoading}
+            >
+              Reset
+            </button>
+          </div>
         </form>
         ) : (
           <div className="form-container">
@@ -1031,14 +1188,25 @@ function App() {
               />
             </div>
 
-            <button
-              type="button"
-              className="submit-btn"
-              disabled={isGeneratingData || selectedCategories.length === 0}
-              onClick={handleGenerateTestData}
-            >
-              {isGeneratingData ? 'Generating...' : 'Generate Test Data'}
-            </button>
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+              <button
+                type="button"
+                className="submit-btn"
+                disabled={isGeneratingData || selectedCategories.length === 0}
+                onClick={handleGenerateTestData}
+              >
+                {isGeneratingData ? 'Generating...' : 'Generate Test Data'}
+              </button>
+              
+              <button
+                type="button"
+                className="reset-btn"
+                onClick={handleResetTestData}
+                disabled={isGeneratingData}
+              >
+                Reset
+              </button>
+            </div>
 
             {testDataResults && (
               <div className="results-container" style={{ marginTop: '20px' }}>
@@ -1083,9 +1251,10 @@ function App() {
         {results && (
           <div className="results-container">
             <div className="results-header">
-              <h2 className="results-title">Generated Test Cases</h2>
+              <h2 className="results-title">Generated Test Results</h2>
               <div className="results-meta">
-                {results.cases.length} test case(s) generated
+                {results.cases.length > 0 && `${results.cases.length} test case(s) generated`}
+                {results.bddFeatures && results.bddFeatures.length > 0 && ` • ${results.bddFeatures.length} BDD feature(s) generated`}
                 {typeof formData.testcaseCount === 'number' && ` • Requested: ${formData.testcaseCount}`}
                 {results.model && ` • Model: ${results.model}`}
                 {results.promptTokens > 0 && ` • Tokens: ${results.promptTokens + results.completionTokens}`}
@@ -1095,71 +1264,85 @@ function App() {
               </div>
             </div>
             
-            <div className="table-container">
-              <table className="results-table">
-                <thead>
-                  <tr>
-                    <th>Test Case ID</th>
-                    <th>Title</th>
-                    <th>Category</th>
-                    <th>Expected Result</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {results.cases.map((testCase: TestCase) => (
-                    <React.Fragment key={`case-${testCase.id}`}>
+            {/* Manual Test Cases Section */}
+            {selectedFormats.includes('Manual') && results.cases && results.cases.length > 0 && (
+              <div style={{ marginBottom: '30px' }}>
+                <h3 style={{ marginBottom: '15px', color: '#2c3e50' }}>Manual Test Cases</h3>
+                <div className="table-container">
+                  <table className="results-table">
+                    <thead>
                       <tr>
-                        <td>
-                          <div 
-                            className={`test-case-id ${expandedTestCases.has(testCase.id) ? 'expanded' : ''}`}
-                            onClick={() => toggleTestCaseExpansion(testCase.id)}
-                          >
-                            <span className={`expand-icon ${expandedTestCases.has(testCase.id) ? 'expanded' : ''}`}>
-                              ▶
-                            </span>
-                            {testCase.id}
-                          </div>
-                        </td>
-                        <td>{testCase.title}</td>
-                        <td>
-                          <span className={`category-${testCase.category.toLowerCase()}`}>
-                            {testCase.category}
-                          </span>
-                        </td>
-                        <td>{testCase.expectedResult}</td>
+                        <th>Test Case ID</th>
+                        <th>Title</th>
+                        <th>Category</th>
+                        <th>Expected Result</th>
                       </tr>
-                      {expandedTestCases.has(testCase.id) && (
-                        <tr key={`${testCase.id}-details`}>
-                          <td colSpan={4}>
-                            <div className="expanded-details">
-                              <h4 style={{marginBottom: '15px', color: '#2c3e50'}}>Test Steps for {testCase.id}</h4>
-                              <div className="step-labels">
-                                <div>Step ID</div>
-                                <div>Step Description</div>
-                                <div>Test Data</div>
-                                <div>Expected Result</div>
+                    </thead>
+                    <tbody>
+                      {results.cases.map((testCase: TestCase) => (
+                        <React.Fragment key={`case-${testCase.id}`}>
+                          <tr>
+                            <td>
+                              <div 
+                                className={`test-case-id ${expandedTestCases.has(testCase.id) ? 'expanded' : ''}`}
+                                onClick={() => toggleTestCaseExpansion(testCase.id)}
+                              >
+                                <span className={`expand-icon ${expandedTestCases.has(testCase.id) ? 'expanded' : ''}`}>
+                                  ▶
+                                </span>
+                                {testCase.id}
                               </div>
-                              {testCase.steps.map((step, index) => (
-                                <div key={index} className="step-item">
-                                  <div className="step-header">
-                                    <div className="step-id">S{String(index + 1).padStart(2, '0')}</div>
-                                    <div className="step-description">{step}</div>
-                                    <div className="step-test-data">{testCase.testData || 'N/A'}</div>
-                                    <div className="step-expected">
-                                      {index === testCase.steps.length - 1 ? testCase.expectedResult : 'Step completed successfully'}
-                                    </div>
+                            </td>
+                            <td>{testCase.title}</td>
+                            <td>
+                              <span className={`category-${testCase.category.toLowerCase()}`}>
+                                {testCase.category}
+                              </span>
+                            </td>
+                            <td>{testCase.expectedResult}</td>
+                          </tr>
+                          {expandedTestCases.has(testCase.id) && (
+                            <tr key={`${testCase.id}-details`}>
+                              <td colSpan={4}>
+                                <div className="expanded-details">
+                                  <h4 style={{marginBottom: '15px', color: '#2c3e50'}}>Test Steps for {testCase.id}</h4>
+                                  <div className="step-labels">
+                                    <div>Step ID</div>
+                                    <div>Step Description</div>
+                                    <div>Test Data</div>
+                                    <div>Expected Result</div>
                                   </div>
+                                  {testCase.steps.map((step, index) => (
+                                    <div key={index} className="step-item">
+                                      <div className="step-header">
+                                        <div className="step-id">S{String(index + 1).padStart(2, '0')}</div>
+                                        <div className="step-description">{step}</div>
+                                        <div className="step-test-data">{testCase.testData || 'N/A'}</div>
+                                        <div className="step-expected">
+                                          {index === testCase.steps.length - 1 ? testCase.expectedResult : 'Step completed successfully'}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
                                 </div>
-                              ))}
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* BDD Scenarios Section */}
+            {selectedFormats.includes('BDD') && results.bddFeatures && results.bddFeatures.length > 0 && (
+              <div style={{ marginBottom: '30px' }}>
+                <h3 style={{ marginBottom: '15px', color: '#2c3e50' }}>BDD Scenarios</h3>
+                <GherkinSyntaxRenderer features={results.bddFeatures} />
+              </div>
+            )}
           </div>
         )}
       </div>

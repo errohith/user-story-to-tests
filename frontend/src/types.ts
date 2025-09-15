@@ -1,5 +1,7 @@
 export type TestCategory = 'Positive' | 'Negative' | 'Edge' | 'Non-Functional'
 
+export type TestFormat = 'Manual' | 'BDD'
+
 export type TestDataFieldType = 'string' | 'number' | 'boolean' | 'date' | 'email' | 'phone'
 
 export interface TestCondition {
@@ -39,6 +41,7 @@ export interface GenerateRequest {
   additionalInfo?: string,
   categories: TestCategory[]
   testcaseCount?: number
+  formats: TestFormat[]
 }
 
 /* Duplicate TestDataField interface removed to resolve type conflict. */
@@ -70,8 +73,27 @@ export interface TestCase {
   category: string
 }
 
+export interface BddStep {
+  keyword: 'Given' | 'When' | 'Then' | 'And' | 'But'
+  text: string
+}
+
+export interface BddScenario {
+  name: string
+  description?: string
+  steps: BddStep[]
+  tags?: string[]
+}
+
+export interface BddFeature {
+  name: string
+  description?: string
+  scenarios: BddScenario[]
+}
+
 export interface GenerateResponse {
   cases: TestCase[]
+  bddFeatures?: BddFeature[]
   model?: string
   promptTokens: number
   completionTokens: number
