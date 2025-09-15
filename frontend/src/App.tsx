@@ -141,7 +141,7 @@ function App() {
     }
 
     if (selectedFormats.length === 0) {
-      setError('Please select at least one test format')
+      setError('Please select at least one test Case format')
       return
     }
 
@@ -1051,9 +1051,9 @@ function App() {
 
           <div className="form-group">
             <label className="form-label">
-              Test Format
+              Test Case Format
             </label>
-            <div className="category-chip-row" role="list" aria-label="Test formats">
+            <div className="category-chip-row" role="list" aria-label="Test Case formats">
               {TEST_FORMATS.map(format => {
                 const isSelected = selectedFormats.includes(format)
                 return (
