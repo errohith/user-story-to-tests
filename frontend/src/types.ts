@@ -100,3 +100,9 @@ export interface GenerateResponse {
   note?: string
   requestedCount?: number
 }
+
+export interface ExportRequest {
+  cases?: TestCase[]
+  bddFeatures?: BddFeature[]
+  fileName?: string
+}

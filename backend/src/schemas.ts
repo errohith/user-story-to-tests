@@ -48,6 +48,15 @@ export const GenerateResponseSchema = z.object({
   completionTokens: z.number()
 })
 
+// Export request schema
+export const ExportRequestSchema = z.object({
+  cases: z.array(TestCaseSchema).optional(),
+  bddFeatures: z.array(BddFeatureSchema).optional(),
+  fileName: z.string().optional()
+}).refine((data) => !!(data.cases && data.cases.length) || !!(data.bddFeatures && data.bddFeatures.length), {
+  message: 'At least one of cases or bddFeatures must be provided'
+})
+
 // JIRA related schemas
 export const JiraStorySchema = z.object({
   id: z.string(),
@@ -118,6 +127,7 @@ export type BddStep = z.infer<typeof BddStepSchema>
 export type BddScenario = z.infer<typeof BddScenarioSchema>
 export type BddFeature = z.infer<typeof BddFeatureSchema>
 export type GenerateResponse = z.infer<typeof GenerateResponseSchema>
+export type ExportRequest = z.infer<typeof ExportRequestSchema>
 
 // JIRA type exports
 export type JiraStory = z.infer<typeof JiraStorySchema>

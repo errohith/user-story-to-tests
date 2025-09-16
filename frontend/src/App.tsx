@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { parseTestCasesForDataFields } from './utils/testDataParser'
-import { generateTests, generateTestData } from './api'
+import { generateTests, generateTestData, exportAsCsv, exportAsExcel, exportAsFeature } from './api'
 import { 
   GenerateRequest, 
   GenerateResponse, 
@@ -62,6 +62,7 @@ function App() {
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
   const [expandedTestCases, setExpandedTestCases] = useState<Set<string>>(new Set())
+  const [isExportOpen, setIsExportOpen] = useState<boolean>(false)
 
   // Parse test cases for data fields whenever results change
   const parsedTestData = useMemo(() => {
@@ -1251,7 +1252,76 @@ function App() {
         {results && (
           <div className="results-container">
             <div className="results-header">
-              <h2 className="results-title">Generated Test Results</h2>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                <h2 className="results-title">Generated Test Results</h2>
+                <div style={{ position: 'relative' }}>
+                  <button
+                    type="button"
+                    className="submit-btn"
+                    onClick={() => setIsExportOpen(v => !v)}
+                    aria-haspopup="menu"
+                    aria-expanded={isExportOpen}
+                  >
+                    Export
+                  </button>
+                  {isExportOpen && (
+                    <div
+                      role="menu"
+                      style={{
+                        position: 'absolute',
+                        right: 0,
+                        top: '110%',
+                        background: '#fff',
+                        border: '1px solid #e1e8ed',
+                        borderRadius: 8,
+                        boxShadow: '0 8px 20px rgba(0,0,0,0.1)',
+                        minWidth: 220,
+                        zIndex: 10
+                      }}
+                      onMouseLeave={() => setIsExportOpen(false)}
+                    >
+                      <button
+                        role="menuitem"
+                        className="nav-button"
+                        style={{ width: '100%', textAlign: 'left', border: 'none', borderBottom: '1px solid #f0f2f5', borderRadius: '8px 8px 0 0' }}
+                        disabled={!results.cases || results.cases.length === 0}
+                        onClick={async () => {
+                          setIsExportOpen(false)
+                          if (!results?.cases?.length) return
+                          await exportAsCsv({ cases: results.cases, storyTitle: formData.storyTitle })
+                        }}
+                      >
+                        Export as CSV
+                      </button>
+                      <button
+                        role="menuitem"
+                        className="nav-button"
+                        style={{ width: '100%', textAlign: 'left', border: 'none', borderBottom: '1px solid #f0f2f5' }}
+                        disabled={!((results.cases && results.cases.length > 0) || (results.bddFeatures && results.bddFeatures.length > 0))}
+                        onClick={async () => {
+                          setIsExportOpen(false)
+                          await exportAsExcel({ cases: results.cases, bddFeatures: results.bddFeatures, storyTitle: formData.storyTitle })
+                        }}
+                      >
+                        Export as Excel (.xlsx)
+                      </button>
+                      <button
+                        role="menuitem"
+                        className="nav-button"
+                        style={{ width: '100%', textAlign: 'left', border: 'none', borderRadius: '0 0 8px 8px' }}
+                        disabled={!results.bddFeatures || results.bddFeatures.length === 0}
+                        onClick={async () => {
+                          setIsExportOpen(false)
+                          if (!results?.bddFeatures?.length) return
+                          await exportAsFeature({ bddFeatures: results.bddFeatures, storyTitle: formData.storyTitle })
+                        }}
+                      >
+                        Export as Feature File (.feature)
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
               <div className="results-meta">
                 {results.cases.length > 0 && `${results.cases.length} test case(s) generated`}
                 {results.bddFeatures && results.bddFeatures.length > 0 && ` • ${results.bddFeatures.length} BDD feature(s) generated`}
