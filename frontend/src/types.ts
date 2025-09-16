@@ -33,6 +33,65 @@ export interface ParsedTestData {
   conditions: Map<string, TestCondition[]>
 }
 
+// JIRA Integration Types
+export interface JiraProject {
+  key: string
+  name: string
+  description?: string
+  lead?: string
+  issueTypes?: Array<{
+    id: string
+    name: string
+    description?: string
+  }>
+}
+
+export interface JiraStory {
+  id: string
+  key: string
+  title: string
+  description?: string
+  status: string
+  priority?: string
+  issueType: string
+  assignee?: string
+  created?: string
+  updated?: string
+  project: {
+    key: string
+    name: string
+  }
+}
+
+export interface JiraSearchRequest {
+  query?: string
+  projectKey?: string
+  issueTypes?: string[]
+  statuses?: string[]
+  startAt?: number
+  maxResults?: number
+}
+
+export interface JiraSearchResponse {
+  issues: JiraStory[]
+  total: number
+  startAt: number
+  maxResults: number
+}
+
+export interface JiraLinkRequest {
+  storyId: string
+  testCases?: TestCase[]
+  bddFeatures?: BddFeature[]
+}
+
+export interface JiraLinkResponse {
+  success: boolean
+  message: string
+  storyId: string
+  linkedTestsCount: number
+}
+
 export interface GenerateRequest {
   storyTitle: string
   jiraId?: string

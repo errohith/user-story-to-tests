@@ -1,6 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { parseTestCasesForDataFields } from './utils/testDataParser'
-import { generateTests, generateTestData } from './api'
+import { 
+  generateTests, 
+  generateTestData, 
+  fetchJiraStory, 
+  searchJiraStories, 
+  fetchJiraProjects,
+  linkTestsToJira
+} from './api'
 import { 
   GenerateRequest, 
   GenerateResponse, 
@@ -8,22 +15,20 @@ import {
   TestCategory,
   TestFormat,
   GenerateTestDataRequest, 
-  GenerateTestDataResponse
+  GenerateTestDataResponse,
+  JiraStory,
+  JiraProject
 } from './types'
 import GherkinSyntaxRenderer from './components/GherkinSyntaxRenderer'
-
-// Sample Jira stories for demo
-const SAMPLE_JIRA_STORIES = [
-  { id: 'JIRA-123', title: 'Implement user authentication' },
-  { id: 'JIRA-456', title: 'Add payment integration' },
-  { id: 'JIRA-789', title: 'Create dashboard analytics' },
-  { id: 'JIRA-234', title: 'Fix navigation bugs' },
-  { id: 'JIRA-567', title: 'Update user profile page' }
-]
 
 function App() {
   const [activeTab, setActiveTab] = useState<'test-cases' | 'test-data'>('test-cases')
   const [isJiraModalOpen, setIsJiraModalOpen] = useState(false)
+  const [jiraStories, setJiraStories] = useState<JiraStory[]>([])
+  const [jiraProjects, setJiraProjects] = useState<JiraProject[]>([])
+  const [isLoadingJira, setIsLoadingJira] = useState(false)
+  const [jiraSearchQuery, setJiraSearchQuery] = useState('')
+  const [selectedProject, setSelectedProject] = useState<string>('')
   const [formData, setFormData] = useState<GenerateRequest>({
     storyTitle: '',
     jiraId: '',
@@ -98,16 +103,69 @@ function App() {
   }
 
   const fetchJiraDetails = async (jiraId: string) => {
-    // Simulated API call - replace with actual JIRA API integration later
-    const story = SAMPLE_JIRA_STORIES.find(s => s.id === jiraId);
-    if (story) {
-      handleInputChange('storyTitle', story.title);
-      // You could also auto-fill other fields like description and acceptance criteria
-      // once the backend integration is ready
-    } else {
-      setError('JIRA story not found. Please check the ID.');
+    try {
+      setIsLoadingJira(true)
+      setError(null)
+      
+      const story = await fetchJiraStory(jiraId)
+      
+      // Auto-populate form fields with JIRA story data
+      handleInputChange('storyTitle', story.title)
+      if (story.description) {
+        handleInputChange('acceptanceCriteria', story.description)
+      }
+      
+      // Clear any previous errors
+      setError(null)
+    } catch (error) {
+      console.error('Error fetching JIRA story:', error)
+      setError(error instanceof Error ? error.message : 'Failed to fetch JIRA story')
+    } finally {
+      setIsLoadingJira(false)
     }
   }
+
+  const searchJiraStoriesHandler = async () => {
+    try {
+      setIsLoadingJira(true)
+      setError(null)
+      
+      // Load projects if not already loaded
+      if (jiraProjects.length === 0) {
+        const projects = await fetchJiraProjects()
+        setJiraProjects(projects)
+      }
+      
+      const searchResults = await searchJiraStories({
+        query: jiraSearchQuery || undefined,
+        projectKey: selectedProject || undefined,
+        maxResults: 20
+      })
+      
+      setJiraStories(searchResults.issues)
+    } catch (error) {
+      console.error('Error searching JIRA stories:', error)
+      setError(error instanceof Error ? error.message : 'Failed to search JIRA stories')
+    } finally {
+      setIsLoadingJira(false)
+    }
+  }
+
+  const selectJiraStory = (story: JiraStory) => {
+    handleInputChange('jiraId', story.key)
+    handleInputChange('storyTitle', story.title)
+    if (story.description) {
+      handleInputChange('acceptanceCriteria', story.description)
+    }
+    setIsJiraModalOpen(false)
+  }
+
+  // Load JIRA projects when modal opens
+  useEffect(() => {
+    if (isJiraModalOpen && jiraProjects.length === 0) {
+      searchJiraStoriesHandler()
+    }
+  }, [isJiraModalOpen])
 
   const handleGenerateTestData = async () => {
     if (selectedCategories.length === 0) {
@@ -930,7 +988,7 @@ function App() {
               <div className="modal-backdrop" onClick={() => setIsJiraModalOpen(false)}>
                 <div className="modal" onClick={e => e.stopPropagation()}>
                   <div className="modal-header">
-                    <h3 className="modal-title">Select Jira Story</h3>
+                    <h3 className="modal-title">Search JIRA Stories</h3>
                     <button 
                       className="modal-close"
                       onClick={() => setIsJiraModalOpen(false)}
@@ -938,21 +996,73 @@ function App() {
                       ×
                     </button>
                   </div>
-                  <div className="jira-story-list">
-                    {SAMPLE_JIRA_STORIES.map(story => (
-                      <div
-                        key={story.id}
-                        className="jira-story-item"
-                        onClick={() => {
-                          handleInputChange('jiraId', story.id);
-                          handleInputChange('storyTitle', story.title);
-                          setIsJiraModalOpen(false);
-                        }}
+                  
+                  <div className="form-group">
+                    <label className="form-label">Search Query</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={jiraSearchQuery}
+                      onChange={(e) => setJiraSearchQuery(e.target.value)}
+                      placeholder="Search stories by title or description..."
+                    />
+                  </div>
+
+                  {jiraProjects.length > 0 && (
+                    <div className="form-group">
+                      <label className="form-label">Project (Optional)</label>
+                      <select
+                        className="form-input"
+                        value={selectedProject}
+                        onChange={(e) => setSelectedProject(e.target.value)}
                       >
-                        <span className="jira-id">{story.id}</span>
-                        <span className="jira-title">{story.title}</span>
+                        <option value="">All Projects</option>
+                        {jiraProjects.map(project => (
+                          <option key={project.key} value={project.key}>
+                            {project.key} - {project.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <div style={{ marginBottom: '20px' }}>
+                    <button
+                      type="button"
+                      className="submit-btn"
+                      onClick={searchJiraStoriesHandler}
+                      disabled={isLoadingJira}
+                    >
+                      {isLoadingJira ? 'Searching...' : 'Search'}
+                    </button>
+                  </div>
+
+                  <div className="jira-story-list">
+                    {isLoadingJira ? (
+                      <div style={{ textAlign: 'center', padding: '20px', color: '#666' }}>
+                        Loading JIRA stories...
                       </div>
-                    ))}
+                    ) : jiraStories.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '20px', color: '#666' }}>
+                        {jiraSearchQuery || selectedProject ? 'No stories found. Try adjusting your search criteria.' : 'Click Search to find JIRA stories.'}
+                      </div>
+                    ) : (
+                      jiraStories.map(story => (
+                        <div
+                          key={story.key}
+                          className="jira-story-item"
+                          onClick={() => selectJiraStory(story)}
+                        >
+                          <span className="jira-id">{story.key}</span>
+                          <div style={{ flex: 1 }}>
+                            <div className="jira-title">{story.title}</div>
+                            <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+                              {story.project.name} • {story.status} • {story.issueType}
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
               </div>
@@ -1251,15 +1361,48 @@ function App() {
         {results && (
           <div className="results-container">
             <div className="results-header">
-              <h2 className="results-title">Generated Test Results</h2>
-              <div className="results-meta">
-                {results.cases.length > 0 && `${results.cases.length} test case(s) generated`}
-                {results.bddFeatures && results.bddFeatures.length > 0 && ` • ${results.bddFeatures.length} BDD feature(s) generated`}
-                {typeof formData.testcaseCount === 'number' && ` • Requested: ${formData.testcaseCount}`}
-                {results.model && ` • Model: ${results.model}`}
-                {results.promptTokens > 0 && ` • Tokens: ${results.promptTokens + results.completionTokens}`}
-                {results.note && (
-                  <div style={{ marginTop: 8, color: '#c0392b' }}>{results.note}</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                  <h2 className="results-title">Generated Test Results</h2>
+                  <div className="results-meta">
+                    {results.cases.length > 0 && `${results.cases.length} test case(s) generated`}
+                    {results.bddFeatures && results.bddFeatures.length > 0 && ` • ${results.bddFeatures.length} BDD feature(s) generated`}
+                    {typeof formData.testcaseCount === 'number' && ` • Requested: ${formData.testcaseCount}`}
+                    {results.model && ` • Model: ${results.model}`}
+                    {results.promptTokens > 0 && ` • Tokens: ${results.promptTokens + results.completionTokens}`}
+                    {results.note && (
+                      <div style={{ marginTop: 8, color: '#c0392b' }}>{results.note}</div>
+                    )}
+                  </div>
+                </div>
+                {formData.jiraId && (
+                  <button
+                    type="button"
+                    className="jira-button"
+                    onClick={async () => {
+                      try {
+                        setIsLoadingJira(true)
+                        const linkResponse = await linkTestsToJira({
+                          storyId: formData.jiraId!,
+                          testCases: results.cases || [],
+                          bddFeatures: results.bddFeatures || []
+                        })
+                        
+                        if (linkResponse.success) {
+                          alert(`Successfully linked ${linkResponse.linkedTestsCount} tests to JIRA story ${linkResponse.storyId}`)
+                        } else {
+                          setError(linkResponse.message)
+                        }
+                      } catch (error) {
+                        setError(error instanceof Error ? error.message : 'Failed to link tests to JIRA')
+                      } finally {
+                        setIsLoadingJira(false)
+                      }
+                    }}
+                    disabled={isLoadingJira}
+                  >
+                    {isLoadingJira ? 'Linking...' : `Link to ${formData.jiraId}`}
+                  </button>
                 )}
               </div>
             </div>
